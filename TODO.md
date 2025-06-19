@@ -1,0 +1,4 @@
+- PUT endpoint for adding a service / heartbeat
+- GET endpoint for listing services
+- Telegram bot
+- Scoped logger
