@@ -60,11 +60,11 @@ const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
   return acmeClient;
 };
 
-const getCertFromLetsencrypt = async (certDir: string): Promise<CertInfo> => {
-  const [acmeClient, dnsTxtRecordModifier] = await Promise.all([
-    getAcmeClient(certDir),
-    DnsManager.create(),
-  ]);
+const getCertFromLetsencrypt = async (
+  certDir: string,
+  dnsTxtRecordModifier: DnsTxtRecordModifier
+): Promise<CertInfo> => {
+  const acmeClient = await getAcmeClient(certDir);
 
   const [key, csr] = await acme.crypto.createCsr({
     altNames: [env().DOMAIN_NAME, `*.${env().DOMAIN_NAME}`],

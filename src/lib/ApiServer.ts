@@ -37,7 +37,7 @@ class ApiServer {
       httpsResolve();
     });
 
-    return Promise.all([httpPromise, httpsPromise]).then();
+    await Promise.all([httpPromise, httpsPromise]);
   }
 }
 
