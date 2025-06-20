@@ -67,7 +67,7 @@ const getCertFromLetsencrypt = async (certDir: string): Promise<CertInfo> => {
   ]);
 
   const [key, csr] = await acme.crypto.createCsr({
-    altNames: ["sommarbacka.com", "*.sommarbacka.com"],
+    altNames: [env().DOMAIN_NAME, `*.${env().DOMAIN_NAME}`],
   });
 
   console.log("Requesting DNS-01 challenge");
@@ -100,8 +100,8 @@ const getCertFromLetsencrypt = async (certDir: string): Promise<CertInfo> => {
 
   const cert = Buffer.from(certString);
 
-  const keyPath = path.resolve(certDir, "sommarbacka.com.key.pem");
-  const certPath = path.resolve(certDir, "sommarbacka.com.cert.pem");
+  const keyPath = path.resolve(certDir, env().DOMAIN_NAME + ".key.pem");
+  const certPath = path.resolve(certDir, env().DOMAIN_NAME + ".cert.pem");
   console.log(`Saving:`);
   console.log(`  - key to ${keyPath}`);
   console.log(`  - cert to ${certPath}`);

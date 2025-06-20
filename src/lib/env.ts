@@ -16,6 +16,7 @@ const ENV = z.object({
   LETSENCRYPT_TOS_AGREED: z.stringbool().optional(),
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_ZONE_ID: z.string().optional(),
+  DOMAIN_NAME: z.string(),
 });
 
 const env = () => ENV.parse(process.env);

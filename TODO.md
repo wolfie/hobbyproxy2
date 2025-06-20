@@ -1,4 +1,8 @@
+- Check startup settings:
+  - Verify DNS entries exist
+  - Verify DNS forwards work
 - PUT endpoint for adding a service / heartbeat
 - GET endpoint for listing services
 - Telegram bot
 - Scoped logger
+- Nicer error handling on missing envs
