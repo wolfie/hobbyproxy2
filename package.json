@@ -12,7 +12,6 @@
     "cloudflare": "^4.4.1",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "http2-express-bridge": "^1.0.7",
     "zod": "^3.25.67"
   },
   "devDependencies": {

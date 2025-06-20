@@ -1,7 +1,6 @@
 import express from "express";
 import http from "http";
-import http2 from "http2";
-import http2ExpressBridge from "http2-express-bridge";
+import https from "https";
 import env from "./env.ts";
 
 export type CertInfo = { key: Buffer; cert: Buffer };
@@ -10,16 +9,18 @@ export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
 class ApiServer {
   #app: express.Application;
   #httpServer: http.Server;
-  #httpsServer: http2.Http2SecureServer;
+  #httpsServer: https.Server;
 
   constructor(certProvider: CertProvider) {
-    this.#app = http2ExpressBridge(express);
-
+    this.#app = express();
     this.#httpServer = http.createServer(this.#app);
-    this.#httpsServer = http2.createSecureServer(
-      { ...certProvider.getSslCert(), allowHTTP1: true },
+    this.#httpsServer = https.createServer(
+      { ...certProvider.getSslCert() },
       this.#app
     );
+
+    this.#httpsServer.on("error", (...args) => console.error("!!!", ...args));
+    this.#app.on("error", (app) => console.error("!!!!", app));
   }
 
   async start(): Promise<void> {
