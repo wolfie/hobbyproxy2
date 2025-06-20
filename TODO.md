@@ -3,6 +3,8 @@
   - Verify DNS forwards work
 - PUT endpoint for adding a service / heartbeat
 - GET endpoint for listing services
+- Renew acquired certificate before it expires
 - Telegram bot
 - Scoped logger
 - Nicer error handling on missing envs
+- Launch project from `npx` from anywhere
