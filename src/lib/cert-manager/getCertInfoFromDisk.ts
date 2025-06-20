@@ -16,10 +16,14 @@ const getCertInfoFromDisk = async (
     console.log(`Cert file not found in ${certPath}`);
   }
 
+  console.log("Loading cert info from:");
+  console.log(`  - ${keyPath}`);
+  console.log(`  - ${certPath}`);
   const [key, cert] = await Promise.all([
     fs.promises.readFile(keyPath),
     fs.promises.readFile(certPath),
   ]);
+  console.log("  ...done!");
 
   return { key, cert };
 };

@@ -102,9 +102,9 @@ const getCertFromLetsencrypt = async (certDir: string): Promise<CertInfo> => {
 
   const keyPath = path.resolve(certDir, "sommarbacka.com.key.pem");
   const certPath = path.resolve(certDir, "sommarbacka.com.cert.pem");
-  console.log(`Saving...`);
-  console.log(`  ...key to ${keyPath}, and...`);
-  console.log(`  ...cert to ${certPath}...`);
+  console.log(`Saving:`);
+  console.log(`  - key to ${keyPath}`);
+  console.log(`  - cert to ${certPath}`);
   await fs.promises.mkdir(certDir, { recursive: true });
   await Promise.all([
     fs.promises.writeFile(keyPath, key),
