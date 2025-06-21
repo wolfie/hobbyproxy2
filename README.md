@@ -17,6 +17,6 @@ This project is a naíve implementation of a reverse proxy for serving various p
 3. Verify that domain is set up correcly:
    1. Check DNS records:
       1. Both root and wildcard records present?
-      2. **TODO:** Are they pointing to our current IP?
-      3. Add the missing records
+      2. Add the missing records
+      3. Update the records pointing to a different IP
    2. **TODO:** Query "domain.tld" and "&lt;random&gt;.domain.tld" with a challenge

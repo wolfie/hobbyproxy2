@@ -6,8 +6,8 @@ import env from "../env.ts";
 import DnsManager from "../DnsManager.ts";
 
 export type DnsTxtRecordModifier = {
-  setTxtEntry(name: string, content: string): Promise<void>;
-  removeAllTxtEntries(name: string): Promise<void>;
+  setTxtRecord(name: string, content: string): Promise<void>;
+  removeAllTxtRecords(name: string): Promise<void>;
 };
 
 const getAcmeAccountKey = async (
@@ -80,7 +80,7 @@ const getCertFromLetsencrypt = async (
       console.log(
         `Setting up DNS-01 challenge answer for ${authz.identifier.value}...`
       );
-      await dnsTxtRecordModifier.setTxtEntry(
+      await dnsTxtRecordModifier.setTxtRecord(
         `_acme-challenge.${authz.identifier.value}`,
         keyAuthorization
       );
@@ -91,7 +91,7 @@ const getCertFromLetsencrypt = async (
       console.log(
         `Cleaning up DNS-01 challenge for ${authz.identifier.value}...`
       );
-      await dnsTxtRecordModifier.removeAllTxtEntries(
+      await dnsTxtRecordModifier.removeAllTxtRecords(
         `_acme-challenge.${authz.identifier.value}`
       );
       console.log("  ...done");
