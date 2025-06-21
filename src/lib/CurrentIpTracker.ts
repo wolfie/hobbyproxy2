@@ -18,8 +18,11 @@ const getCurrentIp = async (): Promise<string | undefined> => {
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
+export type IpChangeListener = (newIp: string) => void;
+
 class CurrentIpTracker {
   #currentIp: string;
+  #listeners: IpChangeListener[] = [];
 
   static async create() {
     const initialIp = await getCurrentIp();
@@ -37,12 +40,17 @@ class CurrentIpTracker {
       if (currentIp && currentIp !== this.#currentIp) {
         console.log(`IP has changed to ${currentIp}`);
         this.#currentIp = currentIp;
+        this.#listeners.forEach((cb) => cb(currentIp));
       }
     }, TEN_MINUTES_MS);
   }
 
   get() {
     return this.#currentIp;
+  }
+
+  onIpChange(cb: IpChangeListener) {
+    this.#listeners.push(cb);
   }
 }
 

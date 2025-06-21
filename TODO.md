@@ -1,8 +1,5 @@
-- Check startup settings:
-  - Verify DNS forwards work
 - PUT endpoint for adding a service / heartbeat
 - GET endpoint for listing services
-- Update DNS A entries when IP changes.
 - Renew acquired certificate before it expires
 - Telegram bot
 - Scoped logger

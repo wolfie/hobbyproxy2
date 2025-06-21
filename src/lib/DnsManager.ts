@@ -68,6 +68,32 @@ class DnsManager implements DnsTxtRecordModifier {
     this.#cloudflare = cloudflare;
     this.#zoneId = zoneId;
     this.#currentIpTracker = currentIpTracker;
+
+    currentIpTracker.onIpChange(async (newIp) => {
+      const records = this.#cloudflare.dns.records.list({
+        zone_id: zoneId,
+        type: "A",
+        name: { endswith: env().DOMAIN_NAME },
+      });
+      for await (const record of records) {
+        if (
+          record.type !== "A" ||
+          ![env().DOMAIN_NAME, `*.${env().DOMAIN_NAME}`].includes(record.name)
+        ) {
+          continue;
+        }
+
+        console.log(
+          `Updating DNS A-record for ${record.name} with new IP ${newIp}`
+        );
+        await this.#cloudflare.dns.records.update(record.id, {
+          ...record,
+          zone_id: zoneId,
+          content: newIp,
+        });
+        console.log("  ...done!");
+      }
+    });
   }
 
   async setTxtRecord(name: string, content: string): Promise<void> {
