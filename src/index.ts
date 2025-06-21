@@ -5,7 +5,9 @@ import DnsManager from "./lib/DnsManager.ts";
 
 const currentIpTracker = await CurrentIpTracker.create();
 const dnsManager = await DnsManager.create(currentIpTracker);
-dnsManager.verifyDnsRecords();
+await dnsManager.verifyDnsRecords();
+
 const certManager = await CertManager.create(dnsManager);
 const server = new ApiServer(certManager);
+
 server.start();

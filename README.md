@@ -19,4 +19,4 @@ This project is a naíve implementation of a reverse proxy for serving various p
       1. Both root and wildcard records present?
       2. Add the missing records
       3. Update the records pointing to a different IP
-   2. **TODO:** Query "domain.tld" and "&lt;random&gt;.domain.tld" with a challenge
+   2. Query "domain.tld" and "&lt;random&gt;.domain.tld" with a challenge under the path `/.well-known/hobbyproxy/<UUID>`
