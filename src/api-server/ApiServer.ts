@@ -3,43 +3,56 @@ import http from "http";
 import https from "https";
 import env from "../lib/env.ts";
 import { randomUUID } from "crypto";
+import proxy from "./proxy.ts";
 
 export type CertInfo = { key: Buffer; cert: Buffer };
 export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
 
 export type ProxyRouteProvider = {
-  getRoute: (hostname: string) => string;
-  setRoute: (hostname: string, expires: Date) => void;
+  getRoute: (
+    hostname: string
+  ) => { hostname: string; port: number } | undefined;
+  setRoute: (
+    hostname: string,
+    targetHostname: string,
+    targetPort: number,
+    expires: Date
+  ) => void;
 };
 
 const CHALLENGE_TIMEOUT_MS = 10_000; // 10sec
 
-const verifyChallenge = async (url: string, challenge: string) => {
-  let timeout = false;
-  const abortController = new AbortController();
-  setTimeout(() => {
-    timeout = true;
-    abortController.abort();
-  }, CHALLENGE_TIMEOUT_MS);
+const createVerifyChallenge =
+  (ignoreFailure: boolean) => async (url: string, challenge: string) => {
+    let timeout = false;
+    const abortController = new AbortController();
+    setTimeout(() => {
+      timeout = true;
+      abortController.abort();
+    }, CHALLENGE_TIMEOUT_MS);
 
-  try {
-    const result = await fetch(url, { signal: abortController.signal });
-    const challengeResult = await result.text();
-    if (result.status !== 200 || challenge !== challengeResult) {
-      throw new Error(
-        `Failed challenge for ${url}\nHTTP ${result.status}\n\n${challengeResult}`
-      );
+    let errorMessage = "";
+    try {
+      const result = await fetch(url, { signal: abortController.signal });
+      const challengeResult = await result.text();
+      if (result.status !== 200 || challenge !== challengeResult) {
+        errorMessage = `Failed challenge for ${url}\nHTTP ${result.status}\n\n${challengeResult}`;
+      }
+    } catch (e) {
+      if (timeout) {
+        errorMessage = `Challenge for ${url} timed out (${CHALLENGE_TIMEOUT_MS}ms)`;
+      } else {
+        throw e;
+      }
     }
-  } catch (e) {
-    if (timeout) {
-      throw new Error(
-        `Challenge for ${url} timed out (${CHALLENGE_TIMEOUT_MS}ms)`
-      );
-    } else {
-      throw e;
+
+    if (errorMessage) {
+      if (ignoreFailure) console.warn(errorMessage);
+      else throw new Error(errorMessage);
     }
-  }
-};
+  };
+
+type Options = Partial<{ startupChallenge?: "error" | "ignore" | "skip" }>;
 
 class ApiServer {
   #proxyRouteProvider: ProxyRouteProvider;
@@ -50,11 +63,15 @@ class ApiServer {
 
   #challenges: { [path: string]: string | undefined } = {};
 
+  #opts: Options;
+
   constructor(
     certProvider: CertProvider,
-    proxyRouteProvider: ProxyRouteProvider
+    proxyRouteProvider: ProxyRouteProvider,
+    opts: Options
   ) {
     this.#proxyRouteProvider = proxyRouteProvider;
+    this.#opts = opts;
 
     this.#app = express();
     this.#httpServer = http.createServer(this.#app);
@@ -75,6 +92,12 @@ class ApiServer {
           res.send(challenge);
         }
       });
+
+    this.#app.use((req, res) => {
+      const target = this.#proxyRouteProvider.getRoute(req.hostname);
+      if (!target) res.status(404).send();
+      else proxy(target.hostname, target.port, req, res);
+    });
   }
 
   async start(): Promise<void> {
@@ -97,6 +120,10 @@ class ApiServer {
   }
 
   private async verifyDnsWorks() {
+    if (this.#opts.startupChallenge === "skip") {
+      console.log("Skipping DNS challenge verification");
+      return;
+    }
     const rootPath = randomUUID();
     const rootUrl = `${env().DOMAIN_NAME}/.well-known/hobbyproxy/${rootPath}`;
     const rootChallenge = randomUUID();
@@ -104,6 +131,11 @@ class ApiServer {
       `Creating challenge for http(s)://${rootUrl} with the value ${rootChallenge}`
     );
     this.#challenges[rootPath] = rootChallenge;
+
+    const verifyChallenge = createVerifyChallenge(
+      this.#opts.startupChallenge === "ignore"
+    );
+
     await verifyChallenge(`http://${rootUrl}`, rootChallenge);
     await verifyChallenge(`https://${rootUrl}`, rootChallenge);
 
@@ -119,7 +151,7 @@ class ApiServer {
     await verifyChallenge(`http://${wildcardUrl}`, wildcardChallenge);
     await verifyChallenge(`https://${wildcardUrl}`, wildcardChallenge);
 
-    console.log("Challenges ok!");
+    console.log("Challenges done!");
     this.#challenges = {};
   }
 }

@@ -8,7 +8,8 @@ import type { ProxyRouteProvider } from "../api-server/ApiServer.ts";
 const RoutesJsonSchema = z.record(
   z.string(),
   z.object({
-    target: z.string(),
+    targetHostname: z.string(),
+    targetPort: z.number(),
     expires: z.iso.datetime().transform((x) => new Date(x)),
   })
 );
@@ -28,21 +29,24 @@ class ProxyManager implements ProxyRouteProvider {
   #proxiesMap: RoutesMap;
 
   static async create() {
+    console.log("Loading initial entries from disk");
     let proxiesMap = await readRoutesFromDisk();
 
     const entries = Object.entries(proxiesMap);
     if (entries.length === 0) {
-      console.log("No entries found on disk");
+      console.log("  ...no entries found");
     } else {
       Object.entries(proxiesMap).forEach(([hostname, value]) =>
-        console.log(`Loaded entry for ${hostname} -> ${value.target}`)
+        console.log(
+          `  ...loaded entry for ${hostname} -> ${value.targetHostname}:${value.targetPort}`
+        )
       );
       let somethingWasFiltered = false;
       const now = Date.now();
       proxiesMap = filterValues(proxiesMap, (value, hostname) => {
         const keep = now < new Date(value.expires).getTime();
         if (!keep) {
-          console.log(`Discarding expired entry for ${hostname}`);
+          console.log(`  ...liscarding expired entry for ${hostname}`);
           somethingWasFiltered = true;
         }
         return keep;
@@ -63,11 +67,28 @@ class ProxyManager implements ProxyRouteProvider {
 
   private constructor(proxiesMap: RoutesMap) {
     this.#proxiesMap = proxiesMap;
-    process.exit(0);
   }
 
-  getRoute: (hostname: string) => string;
-  setRoute: (hostname: string, expires: Date) => void;
+  getRoute(hostname: string) {
+    const route = this.#proxiesMap[hostname];
+    return route && { hostname: route.targetHostname, port: route.targetPort };
+  }
+
+  async setRoute(
+    hostname: string,
+    targetHostname: string,
+    targetPort: number,
+    expires: Date
+  ) {
+    console.log(
+      `Updating route: ${hostname} -> ${targetHostname}:${targetPort} (valid until ${expires.toISOString()})`
+    );
+    this.#proxiesMap[hostname] = { targetHostname, targetPort, expires };
+    await fs.promises.writeFile(
+      ROUTES_JSON_PATH,
+      JSON.stringify(this.#proxiesMap, null, 2)
+    );
+  }
 }
 
 export default ProxyManager;

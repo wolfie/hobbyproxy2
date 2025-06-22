@@ -8,6 +8,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@commander-js/extra-typings": "^14.0.0",
     "acme-client": "^5.4.0",
     "cloudflare": "^4.4.1",
     "dotenv": "^16.5.0",
