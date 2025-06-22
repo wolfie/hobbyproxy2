@@ -51,14 +51,18 @@ class ApiServer {
       this.#app
     );
 
-    this.#app.route("/.well-known/hobbyproxy/:challengeId").get((req, res) => {
-      const challenge = this.#challenges[req.params.challengeId];
-      if (!challenge) {
-        res.status(404).send("Not Found");
-      } else {
-        res.send(challenge);
-      }
-    });
+    this.#app
+      .route("/.well-known/hobbyproxy/:challengeId")
+      .get((req, res, next) => {
+        if (Object.keys(this.#challenges).length === 0) return next();
+
+        const challenge = this.#challenges[req.params.challengeId];
+        if (!challenge) {
+          res.status(404).send("Not Found");
+        } else {
+          res.send(challenge);
+        }
+      });
   }
 
   async start(): Promise<void> {
