@@ -1,14 +1,12 @@
-import { findPackageJSON } from "node:module";
-import type { CertInfo, CertProvider } from "../ApiServer.ts";
+import type { CertInfo, CertProvider } from "../api-server/ApiServer.ts";
 import path from "node:path";
 import getCertInfoFromDisk from "./getCertInfoFromDisk.ts";
 import getCertFromLetsencrypt, {
   type DnsTxtRecordModifier,
 } from "./getCertFromLetsencrypt.ts";
+import getProjectRoot from "../lib/getProjectRoot.ts";
 
-const packageJsonPath = findPackageJSON(import.meta.url);
-if (!packageJsonPath) throw new Error("Could not find project root");
-const CERT_DIR = path.resolve(path.dirname(packageJsonPath), "cert");
+const CERT_DIR = path.resolve(getProjectRoot(), "cert");
 
 class CertManager implements CertProvider {
   #certInfo: Readonly<CertInfo>;

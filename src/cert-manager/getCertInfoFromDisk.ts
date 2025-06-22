@@ -1,7 +1,7 @@
 import path from "node:path";
-import type { CertInfo } from "../ApiServer.ts";
+import type { CertInfo } from "../api-server/ApiServer.ts";
 import fs from "node:fs";
-import env from "../env.ts";
+import env from "../lib/env.ts";
 
 const getCertInfoFromDisk = async (
   certDir: string

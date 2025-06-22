@@ -1,7 +1,7 @@
 import Cloudflare from "cloudflare";
-import env from "./env.ts";
-import type { DnsTxtRecordModifier } from "./cert-manager/getCertFromLetsencrypt.ts";
-import type CurrentIpTracker from "./CurrentIpTracker.ts";
+import env from "../lib/env.ts";
+import type { DnsTxtRecordModifier } from "../cert-manager/getCertFromLetsencrypt.ts";
+import type CurrentIpTracker from "../current-ip-tracker/CurrentIpTracker.ts";
 
 const showAllZones = async (cloudflare: Cloudflare) => {
   console.log("The zone(s) the API key has access to:");

@@ -1,9 +1,9 @@
 import fs from "fs";
-import type { CertInfo } from "../ApiServer.ts";
+import type { CertInfo } from "../api-server/ApiServer.ts";
 import acme, { Client as AcmeClient } from "acme-client";
 import path from "path";
-import env from "../env.ts";
-import DnsManager from "../DnsManager.ts";
+import env from "../lib/env.ts";
+import DnsManager from "../dns-manager/DnsManager.ts";
 
 export type DnsTxtRecordModifier = {
   setTxtRecord(name: string, content: string): Promise<void>;

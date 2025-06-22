@@ -1,7 +1,8 @@
-- PUT endpoint for adding a service / heartbeat
 - GET endpoint for listing services
 - Renew acquired certificate before it expires
+- imports order eslint
 - Telegram bot
 - Scoped logger
 - Nicer error handling on missing envs
+- WebSocket reverse proxy
 - Launch project from `npx` from anywhere
