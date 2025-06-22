@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import fs from "node:fs";
 import filterValues from "../lib/filterValues.ts";
 import type { ProxyRouteProvider } from "../api-server/ApiServer.ts";
+import { hostname } from "node:os";
 
 const RoutesJsonSchema = z.record(
   z.string(),
@@ -88,6 +89,14 @@ class ProxyManager implements ProxyRouteProvider {
       ROUTES_JSON_PATH,
       JSON.stringify(this.#proxiesMap, null, 2)
     );
+  }
+
+  getRoutes() {
+    return Object.entries(this.#proxiesMap).map(([host, target]) => ({
+      host,
+      target: `${target.targetHostname}:${target.targetPort}`,
+      expires: target.expires,
+    }));
   }
 }
 

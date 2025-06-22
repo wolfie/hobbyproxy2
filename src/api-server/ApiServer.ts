@@ -4,11 +4,17 @@ import https from "https";
 import env from "../lib/env.ts";
 import { randomUUID } from "crypto";
 import proxy from "./proxy.ts";
+import onlyLanMiddleware from "./onlyLanMiddleware.ts";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
+import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
 
 export type CertInfo = { key: Buffer; cert: Buffer };
 export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
 
 export type ProxyRouteProvider = {
+  getRoutes: () => { host: string; target: string; expires: Date }[];
   getRoute: (
     hostname: string
   ) => { hostname: string; port: number } | undefined;
@@ -19,6 +25,10 @@ export type ProxyRouteProvider = {
     expires: Date
   ) => void;
 };
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const FAVICON_BUFFER = fs.readFileSync(path.resolve(__dirname, "favicon.png"));
 
 const CHALLENGE_TIMEOUT_MS = 10_000; // 10sec
 
@@ -52,7 +62,11 @@ const createVerifyChallenge =
     }
   };
 
-type Options = Partial<{ startupChallenge?: "error" | "ignore" | "skip" }>;
+type Options = { startupChallenge: "error" | "ignore" | "skip" };
+
+const DEFAULT_OPTIONS: Options = {
+  startupChallenge: "error",
+};
 
 class ApiServer {
   #proxyRouteProvider: ProxyRouteProvider;
@@ -68,32 +82,43 @@ class ApiServer {
   constructor(
     certProvider: CertProvider,
     proxyRouteProvider: ProxyRouteProvider,
-    opts: Options
+    opts?: Partial<Options>
   ) {
     this.#proxyRouteProvider = proxyRouteProvider;
-    this.#opts = opts;
+    this.#opts = { ...DEFAULT_OPTIONS, ...opts };
 
     this.#app = express();
+    this.#app.disable("x-powered-by");
     this.#httpServer = http.createServer(this.#app);
     this.#httpsServer = https.createServer(
       { ...certProvider.getSslCert() },
       this.#app
     );
 
-    this.#app
-      .route("/.well-known/hobbyproxy/:challengeId")
-      .get((req, res, next) => {
-        if (Object.keys(this.#challenges).length === 0) return next();
+    this.#app.get("/.well-known/hobbyproxy/:challengeId", (req, res, next) => {
+      if (Object.keys(this.#challenges).length === 0) return next();
 
-        const challenge = this.#challenges[req.params.challengeId];
-        if (!challenge) {
-          res.status(404).send("Not Found");
-        } else {
-          res.send(challenge);
-        }
-      });
+      const challenge = this.#challenges[req.params.challengeId];
+      if (!challenge) {
+        res.status(404).send("Not Found");
+      } else {
+        res.send(challenge);
+      }
+    });
 
-    this.#app.use((req, res) => {
+    this.#app.get(
+      ["/favicon.ico", "favicon.ico"],
+      onlyLanMiddleware,
+      (req, res) => {
+        res.contentType("image/png").send(FAVICON_BUFFER);
+      }
+    );
+
+    this.#app.get("/", onlyLanMiddleware, (req, res) => {
+      res.send(this.#proxyRouteProvider.getRoutes());
+    });
+
+    this.#app.use(upgradeToHttpsMiddleware, (req, res) => {
       const target = this.#proxyRouteProvider.getRoute(req.hostname);
       if (!target) res.status(404).send();
       else proxy(target.hostname, target.port, req, res);
@@ -124,6 +149,7 @@ class ApiServer {
       console.log("Skipping DNS challenge verification");
       return;
     }
+
     const rootPath = randomUUID();
     const rootUrl = `${env().DOMAIN_NAME}/.well-known/hobbyproxy/${rootPath}`;
     const rootChallenge = randomUUID();
