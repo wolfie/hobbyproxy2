@@ -9,6 +9,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
 import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
+import { z } from "zod/v4";
+import mapBodyLegacyToV2 from "./mapBodyLegacyToV2.ts";
 
 export type CertInfo = { key: Buffer; cert: Buffer };
 export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
@@ -24,6 +26,7 @@ export type ProxyRouteProvider = {
     targetPort: number,
     expires: Date
   ) => void;
+  removeRoute: (hostname: string) => void;
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,6 +34,29 @@ const __dirname = path.dirname(__filename);
 const FAVICON_BUFFER = fs.readFileSync(path.resolve(__dirname, "favicon.png"));
 
 const CHALLENGE_TIMEOUT_MS = 10_000; // 10sec
+
+const PostBodyLegacy = z.object({
+  ver: z.undefined().optional(),
+  hostname: z.string(),
+  target: z.string(),
+  staleInDays: z.int().optional(),
+});
+const PostBodyV2 = z.object({
+  version: z.literal(2),
+  hostname: z.string(),
+  target: z.object({
+    hostname: z.string(),
+    port: z.int(),
+  }),
+  expires: z.iso.datetime().transform((datetime) => new Date(datetime)),
+});
+export type PostBodyLegacy = z.infer<typeof PostBodyLegacy>;
+export type PostBodyV2 = z.infer<typeof PostBodyV2>;
+const PostBody = z.discriminatedUnion("ver", [PostBodyLegacy, PostBodyV2]);
+
+const DeleteBody = z.object({
+  hostname: z.string(),
+});
 
 const createVerifyChallenge =
   (ignoreFailure: boolean) => async (url: string, challenge: string) => {
@@ -116,6 +142,41 @@ class ApiServer {
 
     this.#app.get("/", onlyLanMiddleware, (req, res) => {
       res.send(this.#proxyRouteProvider.getRoutes());
+    });
+
+    this.#app.post("/", onlyLanMiddleware, (req, res) => {
+      console.log("Got POST request to update proxy route");
+      const bodyParseResult = PostBody.safeParse(req.body);
+      if (!bodyParseResult.success) {
+        res.status(400).send(bodyParseResult.error);
+        return;
+      }
+
+      let body: PostBodyV2;
+      if ("version" in bodyParseResult.data) {
+        body = bodyParseResult.data;
+      } else {
+        // support legacy pinger format
+        const bodyMapResult = mapBodyLegacyToV2(bodyParseResult.data, req);
+        if (bodyMapResult.success) {
+          body = bodyMapResult.data;
+        } else {
+          res.status(400).send(bodyMapResult.details);
+          return;
+        }
+      }
+
+      const { hostname, target, expires } = body;
+      this.#proxyRouteProvider.setRoute(
+        hostname,
+        target.hostname,
+        target.port,
+        expires
+      );
+    });
+
+    this.#app.delete("/", onlyLanMiddleware, (req, res) => {
+      console.log("Got DELETE request to delete proxy route");
     });
 
     this.#app.use(upgradeToHttpsMiddleware, (req, res) => {

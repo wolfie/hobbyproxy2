@@ -26,6 +26,15 @@ const readRoutesFromDisk = async (): Promise<RoutesMap> =>
         .then(RoutesJsonSchema.parse)
     : {};
 
+const writeRoutesToDisk = async (routesMap: RoutesMap) => {
+  console.log("Writing routes to disk");
+  await fs.promises.writeFile(
+    ROUTES_JSON_PATH,
+    JSON.stringify(routesMap, null, 2)
+  );
+  console.log("  ...done!");
+};
+
 class ProxyManager implements ProxyRouteProvider {
   #proxiesMap: RoutesMap;
 
@@ -47,20 +56,13 @@ class ProxyManager implements ProxyRouteProvider {
       proxiesMap = filterValues(proxiesMap, (value, hostname) => {
         const keep = now < new Date(value.expires).getTime();
         if (!keep) {
-          console.log(`  ...liscarding expired entry for ${hostname}`);
+          console.log(`  ...discarding expired entry for ${hostname}`);
           somethingWasFiltered = true;
         }
         return keep;
       }) as RoutesMap;
 
-      if (somethingWasFiltered) {
-        console.log("Writing changes back to disk");
-        await fs.promises.writeFile(
-          ROUTES_JSON_PATH,
-          JSON.stringify(proxiesMap, null, 2)
-        );
-        console.log("  ...done!");
-      }
+      if (somethingWasFiltered) await writeRoutesToDisk(proxiesMap);
     }
 
     return new ProxyManager(proxiesMap as RoutesMap);
@@ -97,6 +99,15 @@ class ProxyManager implements ProxyRouteProvider {
       target: `${target.targetHostname}:${target.targetPort}`,
       expires: target.expires,
     }));
+  }
+
+  async removeRoute(hostname: string) {
+    const oldMap = { ...this.#proxiesMap };
+    delete this.#proxiesMap[hostname];
+    if (Object.keys(oldMap).length > Object.keys(this.#proxiesMap).length) {
+      console.log(`Deleted route to ${hostname}`);
+      await writeRoutesToDisk(this.#proxiesMap);
+    }
   }
 }
 
