@@ -1,4 +1,3 @@
-- GET endpoint for listing services
 - Renew acquired certificate before it expires
 - imports order eslint
 - Telegram bot
