@@ -1,10 +1,11 @@
-import type { CertInfo, CertProvider } from "../api-server/ApiServer.ts";
 import path from "node:path";
-import getCertInfoFromDisk from "./getCertInfoFromDisk.ts";
+
+import type { CertInfo, CertProvider } from "../api-server/ApiServer.ts";
+import getProjectRoot from "../lib/getProjectRoot.ts";
 import getCertFromLetsencrypt, {
   type DnsTxtRecordModifier,
 } from "./getCertFromLetsencrypt.ts";
-import getProjectRoot from "../lib/getProjectRoot.ts";
+import getCertInfoFromDisk from "./getCertInfoFromDisk.ts";
 
 const CERT_DIR = path.resolve(getProjectRoot(), "cert");
 
@@ -15,7 +16,7 @@ class CertManager implements CertProvider {
     let certInfo = await getCertInfoFromDisk(CERT_DIR);
     if (!certInfo) {
       console.log(
-        "Cert info not found on disk, acquiring new from LetsEncrypt"
+        "Cert info not found on disk, acquiring new from LetsEncrypt",
       );
 
       certInfo = await getCertFromLetsencrypt(CERT_DIR, dnsTxtRecordModifier);

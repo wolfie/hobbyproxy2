@@ -1,10 +1,11 @@
-import path from "node:path";
-import type { CertInfo } from "../api-server/ApiServer.ts";
 import fs from "node:fs";
+import path from "node:path";
+
+import type { CertInfo } from "../api-server/ApiServer.ts";
 import env from "../lib/env.ts";
 
 const getCertInfoFromDisk = async (
-  certDir: string
+  certDir: string,
 ): Promise<CertInfo | undefined> => {
   const keyPath = path.resolve(certDir, env().DOMAIN_NAME + ".key.pem");
   if (!fs.existsSync(keyPath)) {

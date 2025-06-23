@@ -1,16 +1,17 @@
 import express from "express";
-import http from "http";
-import https from "https";
-import env from "../lib/env.ts";
-import { randomUUID } from "crypto";
-import proxy from "./proxy.ts";
-import onlyLanMiddleware from "./onlyLanMiddleware.ts";
-import fs from "fs";
-import { fileURLToPath } from "url";
-import path from "path";
-import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
+import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import http from "node:http";
+import https from "node:https";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
+
+import env from "../lib/env.ts";
 import mapBodyLegacyToV2 from "./mapBodyLegacyToV2.ts";
+import onlyLanMiddleware from "./onlyLanMiddleware.ts";
+import proxy from "./proxy.ts";
+import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
 
 export type CertInfo = { key: Buffer; cert: Buffer };
 export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
@@ -18,13 +19,13 @@ export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
 export type ProxyRouteProvider = {
   getRoutes: () => { host: string; target: string; expires: Date }[];
   getRoute: (
-    hostname: string
+    hostname: string,
   ) => { hostname: string; port: number } | undefined;
   setRoute: (
     hostname: string,
     targetHostname: string,
     targetPort: number,
-    expires: Date
+    expires: Date,
   ) => void;
   removeRoute: (hostname: string) => void;
 };
@@ -108,7 +109,7 @@ class ApiServer {
   constructor(
     certProvider: CertProvider,
     proxyRouteProvider: ProxyRouteProvider,
-    opts?: Partial<Options>
+    opts?: Partial<Options>,
   ) {
     this.#proxyRouteProvider = proxyRouteProvider;
     this.#opts = { ...DEFAULT_OPTIONS, ...opts };
@@ -118,7 +119,7 @@ class ApiServer {
     this.#httpServer = http.createServer(this.#app);
     this.#httpsServer = https.createServer(
       { ...certProvider.getSslCert() },
-      this.#app
+      this.#app,
     );
 
     this.#app.get("/.well-known/hobbyproxy/:challengeId", (req, res, next) => {
@@ -137,7 +138,7 @@ class ApiServer {
       onlyLanMiddleware,
       (req, res) => {
         res.contentType("image/png").send(FAVICON_BUFFER);
-      }
+      },
     );
 
     this.#app.get("/", onlyLanMiddleware, (req, res) => {
@@ -171,12 +172,21 @@ class ApiServer {
         hostname,
         target.hostname,
         target.port,
-        expires
+        expires,
       );
+      res.send({ success: true });
     });
 
     this.#app.delete("/", onlyLanMiddleware, (req, res) => {
       console.log("Got DELETE request to delete proxy route");
+      const body = DeleteBody.safeParse(req.body);
+      if (!body.success) {
+        res.status(400).send(body.error);
+        return;
+      }
+
+      this.#proxyRouteProvider.removeRoute(body.data.hostname);
+      res.send({ success: true });
     });
 
     this.#app.use(upgradeToHttpsMiddleware, (req, res) => {
@@ -215,12 +225,12 @@ class ApiServer {
     const rootUrl = `${env().DOMAIN_NAME}/.well-known/hobbyproxy/${rootPath}`;
     const rootChallenge = randomUUID();
     console.log(
-      `Creating challenge for http(s)://${rootUrl} with the value ${rootChallenge}`
+      `Creating challenge for http(s)://${rootUrl} with the value ${rootChallenge}`,
     );
     this.#challenges[rootPath] = rootChallenge;
 
     const verifyChallenge = createVerifyChallenge(
-      this.#opts.startupChallenge === "ignore"
+      this.#opts.startupChallenge === "ignore",
     );
 
     await verifyChallenge(`http://${rootUrl}`, rootChallenge);
@@ -232,7 +242,7 @@ class ApiServer {
     }/.well-known/hobbyproxy/${wildcardPath}`;
     const wildcardChallenge = randomUUID();
     console.log(
-      `Creating challenge for http(s)://${wildcardUrl} with the value ${wildcardChallenge}`
+      `Creating challenge for http(s)://${wildcardUrl} with the value ${wildcardChallenge}`,
     );
     this.#challenges[wildcardPath] = wildcardChallenge;
     await verifyChallenge(`http://${wildcardUrl}`, wildcardChallenge);

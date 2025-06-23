@@ -1,19 +1,19 @@
+import { Command, Option } from "@commander-js/extra-typings";
+
 import ApiServer from "./api-server/ApiServer.ts";
 import CertManager from "./cert-manager/CertManager.ts";
 import CurrentIpTracker from "./current-ip-tracker/CurrentIpTracker.ts";
 import DnsManager from "./dns-manager/DnsManager.ts";
 import ProxyManager from "./proxy-manager/ProxyManager.ts";
 
-import { Command, Option } from "@commander-js/extra-typings";
-
 const options = new Command("hobbyproxy")
   .addOption(
     new Option(
       "--startup-challenge <action>",
-      "What to do with the DNS-verification step at startup?"
+      "What to do with the DNS-verification step at startup?",
     )
       .choices(["error", "ignore", "skip"])
-      .default("error")
+      .default("error"),
   )
   .showHelpAfterError()
   .parse()

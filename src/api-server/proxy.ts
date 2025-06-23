@@ -1,14 +1,14 @@
 import type express from "express";
 import type { IncomingHttpHeaders } from "node:http";
 import { Readable } from "node:stream";
+
 import pipe from "../lib/pipe.ts";
-import filterValues from "../lib/filterValues.ts";
 
 const applyForwardedHeader =
   (req: express.Request) => (headers: [string, string][]) => {
     // TODO append to existing headers instead of clearing old ones.
     headers = headers.filter(
-      ([key]) => !key.startsWith("x-forwarded-") && key !== "forwarded"
+      ([key]) => !key.startsWith("x-forwarded-") && key !== "forwarded",
     );
     headers.push([
       "forwarded",
@@ -30,14 +30,14 @@ const spreadHeaders = (headers: IncomingHttpHeaders): [string, string][] =>
       ? Array.isArray(value)
         ? value.map((v) => [name, v] as [string, string])
         : ([[name, value]] as [string, string][])
-      : []
+      : [],
   );
 
 const proxy = async (
   hostname: string,
   port: number,
   req: express.Request,
-  res: express.Response
+  res: express.Response,
 ) => {
   const url = `http://${hostname}:${port}${req.originalUrl}`;
 

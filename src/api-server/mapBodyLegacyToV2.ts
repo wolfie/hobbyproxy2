@@ -1,9 +1,10 @@
-import type { PostBodyLegacy, PostBodyV2 } from "./ApiServer.ts";
 import type { Request } from "express";
+
+import type { PostBodyLegacy, PostBodyV2 } from "./ApiServer.ts";
 
 const mapBodyLegacyToV2 = (
   body: PostBodyLegacy,
-  req: Request
+  req: Request,
 ):
   | { success: true; data: PostBodyV2 }
   | { success: false; error: "bad-hostname"; details: string } => {

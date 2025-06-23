@@ -1,9 +1,9 @@
-import fs from "fs";
-import type { CertInfo } from "../api-server/ApiServer.ts";
 import acme, { Client as AcmeClient } from "acme-client";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+
+import type { CertInfo } from "../api-server/ApiServer.ts";
 import env from "../lib/env.ts";
-import DnsManager from "../dns-manager/DnsManager.ts";
 
 export type DnsTxtRecordModifier = {
   setTxtRecord(name: string, content: string): Promise<void>;
@@ -11,7 +11,7 @@ export type DnsTxtRecordModifier = {
 };
 
 const getAcmeAccountKey = async (
-  certDir: string
+  certDir: string,
 ): Promise<{ newKeyWasCreated: boolean; buffer: Buffer }> => {
   const keyPath = path.resolve(certDir, "acmeAccount.key.pem");
   if (fs.existsSync(keyPath)) {
@@ -22,7 +22,7 @@ const getAcmeAccountKey = async (
   }
 
   console.log(
-    `Acme account private key not found in ${keyPath}, creating new one`
+    `Acme account private key not found in ${keyPath}, creating new one`,
   );
   const keyBuffer = await acme.crypto.createPrivateKey();
   await fs.promises.mkdir(path.dirname(keyPath), { recursive: true });
@@ -45,7 +45,7 @@ const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
     if (!tosAgreed) {
       const tosUrl = await acmeClient.getTermsOfServiceUrl();
       throw new Error(
-        `Set LETSENCRYPT_TOS_AGREED=true once you've read ${tosUrl}`
+        `Set LETSENCRYPT_TOS_AGREED=true once you've read ${tosUrl}`,
       );
     }
     acmeClient.createAccount({
@@ -62,7 +62,7 @@ const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
 
 const getCertFromLetsencrypt = async (
   certDir: string,
-  dnsTxtRecordModifier: DnsTxtRecordModifier
+  dnsTxtRecordModifier: DnsTxtRecordModifier,
 ): Promise<CertInfo> => {
   const acmeClient = await getAcmeClient(certDir);
 
@@ -78,21 +78,21 @@ const getCertFromLetsencrypt = async (
       if (challenge.type === "http-01") return;
 
       console.log(
-        `Setting up DNS-01 challenge answer for ${authz.identifier.value}...`
+        `Setting up DNS-01 challenge answer for ${authz.identifier.value}...`,
       );
       await dnsTxtRecordModifier.setTxtRecord(
         `_acme-challenge.${authz.identifier.value}`,
-        keyAuthorization
+        keyAuthorization,
       );
       console.log("  ...done!");
     },
-    challengeRemoveFn: async (authz, challenge, keyAuthorization) => {
+    challengeRemoveFn: async (authz, challenge, _keyAuthorization) => {
       if (challenge.type === "http-01") return;
       console.log(
-        `Cleaning up DNS-01 challenge for ${authz.identifier.value}...`
+        `Cleaning up DNS-01 challenge for ${authz.identifier.value}...`,
       );
       await dnsTxtRecordModifier.removeAllTxtRecords(
-        `_acme-challenge.${authz.identifier.value}`
+        `_acme-challenge.${authz.identifier.value}`,
       );
       console.log("  ...done");
     },

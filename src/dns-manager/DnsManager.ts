@@ -1,7 +1,8 @@
 import Cloudflare from "cloudflare";
-import env from "../lib/env.ts";
+
 import type { DnsTxtRecordModifier } from "../cert-manager/getCertFromLetsencrypt.ts";
 import type CurrentIpTracker from "../current-ip-tracker/CurrentIpTracker.ts";
+import env from "../lib/env.ts";
 
 const showAllZones = async (cloudflare: Cloudflare) => {
   console.log("The zone(s) the API key has access to:");
@@ -11,7 +12,7 @@ const showAllZones = async (cloudflare: Cloudflare) => {
 };
 
 const getZoneId = async (cloudflare: Cloudflare): Promise<string> => {
-  let zoneId = env().CLOUDFLARE_ZONE_ID;
+  const zoneId = env().CLOUDFLARE_ZONE_ID;
   if (zoneId) {
     const exists = await cloudflare.zones
       .get({ zone_id: zoneId })
@@ -63,7 +64,7 @@ class DnsManager implements DnsTxtRecordModifier {
   private constructor(
     cloudflare: Cloudflare,
     zoneId: string,
-    currentIpTracker: CurrentIpTracker
+    currentIpTracker: CurrentIpTracker,
   ) {
     this.#cloudflare = cloudflare;
     this.#zoneId = zoneId;
@@ -84,7 +85,7 @@ class DnsManager implements DnsTxtRecordModifier {
         }
 
         console.log(
-          `Updating DNS A-record for ${record.name} with new IP ${newIp}`
+          `Updating DNS A-record for ${record.name} with new IP ${newIp}`,
         );
         await this.#cloudflare.dns.records.update(record.id, {
           ...record,
@@ -151,7 +152,7 @@ class DnsManager implements DnsTxtRecordModifier {
     for await (const record of records) {
       if (record.type !== "A") {
         console.error(
-          `Internal Error: Unexpected record of type ${record.type} found (id:${record.id})`
+          `Internal Error: Unexpected record of type ${record.type} found (id:${record.id})`,
         );
         continue;
       }
@@ -160,7 +161,7 @@ class DnsManager implements DnsTxtRecordModifier {
         console.log(
           `[${record.type}] ${record.name} -> ${record.content}${
             record.proxied ? " (proxied)" : ""
-          }`
+          }`,
         );
       };
 
@@ -200,7 +201,7 @@ class DnsManager implements DnsTxtRecordModifier {
 
     if (!checks.found) {
       console.log(
-        `Checking for possibly conflicting AAAA/CNAME-records on ${checks.domain}`
+        `Checking for possibly conflicting AAAA/CNAME-records on ${checks.domain}`,
       );
       const entries = this.#cloudflare.dns.records.list({
         zone_id: this.#zoneId,
@@ -212,11 +213,11 @@ class DnsManager implements DnsTxtRecordModifier {
           entry.name === checks.domain
         ) {
           console.error(
-            `Found conflicting record: [${entry.type}] ${entry.name}`
+            `Found conflicting record: [${entry.type}] ${entry.name}`,
           );
           throw new Error(
             "Cannot fix DNS record issue automatically. " +
-              "Consider deleting the conflicting entry."
+              "Consider deleting the conflicting entry.",
           );
         }
       }
@@ -225,7 +226,7 @@ class DnsManager implements DnsTxtRecordModifier {
       console.log(
         `Updating DNS A-record ` +
           `for ${checks.domain} to ` +
-          `point to current IP: ${this.#currentIpTracker.get()}...`
+          `point to current IP: ${this.#currentIpTracker.get()}...`,
       );
       await this.#cloudflare.dns.records.update(checks.dnsRecord.id, {
         ...checks.dnsRecord,

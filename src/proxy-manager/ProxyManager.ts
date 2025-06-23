@@ -1,10 +1,10 @@
-import path from "node:path";
-import getProjectRoot from "../lib/getProjectRoot.ts";
-import { z } from "zod/v4";
 import fs from "node:fs";
-import filterValues from "../lib/filterValues.ts";
+import path from "node:path";
+import { z } from "zod/v4";
+
 import type { ProxyRouteProvider } from "../api-server/ApiServer.ts";
-import { hostname } from "node:os";
+import filterValues from "../lib/filterValues.ts";
+import getProjectRoot from "../lib/getProjectRoot.ts";
 
 const RoutesJsonSchema = z.record(
   z.string(),
@@ -12,7 +12,7 @@ const RoutesJsonSchema = z.record(
     targetHostname: z.string(),
     targetPort: z.number(),
     expires: z.iso.datetime().transform((x) => new Date(x)),
-  })
+  }),
 );
 type RoutesMap = z.infer<typeof RoutesJsonSchema>;
 
@@ -30,7 +30,7 @@ const writeRoutesToDisk = async (routesMap: RoutesMap) => {
   console.log("Writing routes to disk");
   await fs.promises.writeFile(
     ROUTES_JSON_PATH,
-    JSON.stringify(routesMap, null, 2)
+    JSON.stringify(routesMap, null, 2),
   );
   console.log("  ...done!");
 };
@@ -48,8 +48,8 @@ class ProxyManager implements ProxyRouteProvider {
     } else {
       Object.entries(proxiesMap).forEach(([hostname, value]) =>
         console.log(
-          `  ...loaded entry for ${hostname} -> ${value.targetHostname}:${value.targetPort}`
-        )
+          `  ...loaded entry for ${hostname} -> ${value.targetHostname}:${value.targetPort}`,
+        ),
       );
       let somethingWasFiltered = false;
       const now = Date.now();
@@ -81,15 +81,15 @@ class ProxyManager implements ProxyRouteProvider {
     hostname: string,
     targetHostname: string,
     targetPort: number,
-    expires: Date
+    expires: Date,
   ) {
     console.log(
-      `Updating route: ${hostname} -> ${targetHostname}:${targetPort} (valid until ${expires.toISOString()})`
+      `Updating route: ${hostname} -> ${targetHostname}:${targetPort} (valid until ${expires.toISOString()})`,
     );
     this.#proxiesMap[hostname] = { targetHostname, targetPort, expires };
     await fs.promises.writeFile(
       ROUTES_JSON_PATH,
-      JSON.stringify(this.#proxiesMap, null, 2)
+      JSON.stringify(this.#proxiesMap, null, 2),
     );
   }
 

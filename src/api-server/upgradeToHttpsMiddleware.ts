@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+
 import isLanAddress from "./isLanAddress.ts";
 
 const upgradeToHttpsMiddleware: RequestHandler = (req, res, next) =>
