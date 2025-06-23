@@ -1,5 +1,4 @@
 - Renew acquired certificate before it expires
-- imports order eslint
 - Telegram bot
 - Scoped logger
 - Nicer error handling on missing envs
