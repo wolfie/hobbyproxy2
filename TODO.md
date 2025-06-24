@@ -1,4 +1,3 @@
-- Renew acquired certificate before it expires
 - Telegram bot
 - Scoped logger
 - Nicer error handling on missing envs
