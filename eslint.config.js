@@ -1,7 +1,6 @@
 import js from "@eslint/js";
 import json from "@eslint/json";
 import markdown from "@eslint/markdown";
-import eslintPluginImport from "eslint-plugin-import";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import { defineConfig } from "eslint/config";
 import globals from "globals";
@@ -15,7 +14,6 @@ export default defineConfig([
   },
   {
     files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
-    plugins: { import: eslintPluginImport },
     rules: {
       "import/enforce-node-protocol-usage": ["error", "always"],
     },
