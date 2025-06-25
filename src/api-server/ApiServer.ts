@@ -7,28 +7,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 
-import env from "../lib/env.ts";
+import type CertManager from "../cert-manager/CertManager.ts";
+import env from "../env.ts";
+import LogSpan from "../logger/LogSpan.ts";
+import { flushAllBuffers } from "../logger/NtfyBuffer.ts";
+import type ProxyManager from "../proxy-manager/ProxyManager.ts";
 import mapBodyLegacyToV2 from "./mapBodyLegacyToV2.ts";
 import onlyLanMiddleware from "./onlyLanMiddleware.ts";
 import proxy from "./proxy.ts";
 import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
-
-export type CertInfo = { key: Buffer; cert: Buffer };
-export type CertProvider = { getSslCert: () => Readonly<CertInfo> };
-
-export type ProxyRouteProvider = {
-  getRoutes: () => { host: string; target: string; expires: Date }[];
-  getRoute: (
-    hostname: string,
-  ) => { hostname: string; port: number } | undefined;
-  setRoute: (
-    hostname: string,
-    targetHostname: string,
-    targetPort: number,
-    expires: Date,
-  ) => void;
-  removeRoute: (hostname: string) => void;
-};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,7 +47,8 @@ const DeleteBody = z.object({
 });
 
 const createVerifyChallenge =
-  (ignoreFailure: boolean) => async (url: string, challenge: string) => {
+  (ignoreFailure: boolean, span: LogSpan) =>
+  async (url: string, challenge: string) => {
     let timeout = false;
     const abortController = new AbortController();
     setTimeout(() => {
@@ -84,8 +72,11 @@ const createVerifyChallenge =
     }
 
     if (errorMessage) {
-      if (ignoreFailure) console.warn(errorMessage);
-      else throw new Error(errorMessage);
+      span.log("API", errorMessage);
+      if (!ignoreFailure) {
+        await flushAllBuffers();
+        process.exit(1);
+      }
     }
   };
 
@@ -96,7 +87,7 @@ const DEFAULT_OPTIONS: Options = {
 };
 
 class ApiServer {
-  #proxyRouteProvider: ProxyRouteProvider;
+  #proxyManager: ProxyManager;
 
   #app: express.Application;
   #httpServer: http.Server;
@@ -107,18 +98,18 @@ class ApiServer {
   #opts: Options;
 
   constructor(
-    certProvider: CertProvider,
-    proxyRouteProvider: ProxyRouteProvider,
+    certManager: CertManager,
+    proxyManager: ProxyManager,
     opts?: Partial<Options>,
   ) {
-    this.#proxyRouteProvider = proxyRouteProvider;
+    this.#proxyManager = proxyManager;
     this.#opts = { ...DEFAULT_OPTIONS, ...opts };
 
     this.#app = express();
     this.#app.disable("x-powered-by");
     this.#httpServer = http.createServer(this.#app);
     this.#httpsServer = https.createServer(
-      { ...certProvider.getSslCert() },
+      { ...certManager.getSslCert() },
       this.#app,
     );
 
@@ -142,11 +133,12 @@ class ApiServer {
     );
 
     this.#app.get("/", onlyLanMiddleware, (req, res) => {
-      res.send(this.#proxyRouteProvider.getRoutes());
+      res.send(this.#proxyManager.getRoutes());
     });
 
-    this.#app.post("/", onlyLanMiddleware, (req, res) => {
-      console.log("Got POST request to update proxy route");
+    this.#app.post("/", onlyLanMiddleware, async (req, res) => {
+      await using span = new LogSpan("POST /");
+      span.logNoNtfy("API", "Got POST request to update proxy route");
       const bodyParseResult = PostBody.safeParse(req.body);
       if (!bodyParseResult.success) {
         res.status(400).send(bodyParseResult.error);
@@ -168,69 +160,73 @@ class ApiServer {
       }
 
       const { hostname, target, expires } = body;
-      this.#proxyRouteProvider.setRoute(
+      this.#proxyManager.setRoute(
         hostname,
         target.hostname,
         target.port,
         expires,
+        span,
       );
       res.send({ success: true });
     });
 
-    this.#app.delete("/", onlyLanMiddleware, (req, res) => {
-      console.log("Got DELETE request to delete proxy route");
+    this.#app.delete("/", onlyLanMiddleware, async (req, res) => {
+      await using span = new LogSpan("POST /");
+      span.logNoNtfy("API", "Got DELETE request to delete proxy route");
       const body = DeleteBody.safeParse(req.body);
       if (!body.success) {
         res.status(400).send(body.error);
         return;
       }
 
-      this.#proxyRouteProvider.removeRoute(body.data.hostname);
+      this.#proxyManager.removeRoute(body.data.hostname, span);
       res.send({ success: true });
     });
 
-    this.#app.use(upgradeToHttpsMiddleware, (req, res) => {
-      const target = this.#proxyRouteProvider.getRoute(req.hostname);
+    this.#app.use(upgradeToHttpsMiddleware, async (req, res) => {
+      const target = this.#proxyManager.getRoute(req.hostname);
       if (!target) res.status(404).send();
       else proxy(target.hostname, target.port, req, res);
     });
   }
 
-  async start(): Promise<void> {
+  async start(span: LogSpan): Promise<void> {
     const { promise: httpPromise, resolve: httpResolve } =
       Promise.withResolvers<void>();
     this.#httpServer.listen(env().HTTP_PORT, "0.0.0.0", () => {
-      console.log(`HTTP server started on port ${env().HTTP_PORT}`);
+      span.log("API", `HTTP server started on port ${env().HTTP_PORT}`);
       httpResolve();
     });
 
     const { promise: httpsPromise, resolve: httpsResolve } =
       Promise.withResolvers<void>();
     this.#httpsServer.listen(env().HTTPS_PORT, "0.0.0.0", () => {
-      console.log(`HTTPS server started on port ${env().HTTPS_PORT}`);
+      span.log("API", `HTTPS server started on port ${env().HTTPS_PORT}`);
       httpsResolve();
     });
 
     await Promise.all([httpPromise, httpsPromise]);
-    await this.verifyDnsWorks();
+    await this.verifyDnsWorks(span);
   }
 
-  private async verifyDnsWorks() {
+  private async verifyDnsWorks(span: LogSpan) {
     if (this.#opts.startupChallenge === "skip") {
-      console.log("Skipping DNS challenge verification");
+      span.logNoNtfy("API", "Skipping DNS challenge verification");
       return;
     }
 
     const rootPath = randomUUID();
     const rootUrl = `${env().DOMAIN_NAME}/.well-known/hobbyproxy/${rootPath}`;
     const rootChallenge = randomUUID();
-    console.log(
+    span.logNoNtfy(
+      "API",
       `Creating challenge for http(s)://${rootUrl} with the value ${rootChallenge}`,
     );
     this.#challenges[rootPath] = rootChallenge;
 
     const verifyChallenge = createVerifyChallenge(
       this.#opts.startupChallenge === "ignore",
+      span,
     );
 
     await verifyChallenge(`http://${rootUrl}`, rootChallenge);
@@ -241,14 +237,15 @@ class ApiServer {
       env().DOMAIN_NAME
     }/.well-known/hobbyproxy/${wildcardPath}`;
     const wildcardChallenge = randomUUID();
-    console.log(
+    span.logNoNtfy(
+      "API",
       `Creating challenge for http(s)://${wildcardUrl} with the value ${wildcardChallenge}`,
     );
     this.#challenges[wildcardPath] = wildcardChallenge;
     await verifyChallenge(`http://${wildcardUrl}`, wildcardChallenge);
     await verifyChallenge(`https://${wildcardUrl}`, wildcardChallenge);
 
-    console.log("Challenges done!");
+    span.logNoNtfy("API", "Challenges done!");
     this.#challenges = {};
   }
 }

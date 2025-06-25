@@ -17,6 +17,8 @@ const ENV = z.object({
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_ZONE_ID: z.string().optional(),
   DOMAIN_NAME: z.string(),
+  NTFY_SERVER: z.url().optional(),
+  NTFY_TOPIC: z.string().min(1).optional(),
 });
 
 const env = () => ENV.parse(process.env);

@@ -1,31 +1,34 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { CertInfo } from "../api-server/ApiServer.ts";
-import env from "../lib/env.ts";
+import env from "../env.ts";
+import type LogSpan from "../logger/LogSpan.ts";
+import type { CertInfo } from "./CertManager.ts";
 
 const getCertInfoFromDisk = async (
   certDir: string,
+  span: LogSpan,
 ): Promise<CertInfo | undefined> => {
   const keyPath = path.resolve(certDir, env().DOMAIN_NAME + ".key.pem");
   if (!fs.existsSync(keyPath)) {
-    console.log(`Key file not found in ${keyPath}`);
+    span.log("CERT", `Key file not found in ${keyPath}`);
     return undefined;
   }
 
   const certPath = path.resolve(certDir, env().DOMAIN_NAME + ".cert.pem");
   if (!fs.existsSync(certPath)) {
-    console.log(`Cert file not found in ${certPath}`);
+    span.log("CERT", `Cert file not found in ${certPath}`);
+    return undefined;
   }
 
-  console.log("Loading cert info from:");
-  console.log(`  - ${keyPath}`);
-  console.log(`  - ${certPath}`);
+  span.log("CERT", "Loading cert info from:");
+  span.log("CERT", `  - ${keyPath}`);
+  span.log("CERT", `  - ${certPath}`);
   const [key, cert] = await Promise.all([
     fs.promises.readFile(keyPath),
     fs.promises.readFile(certPath),
   ]);
-  console.log("  ...done!");
+  span.log("CERT", "  ...done!");
 
   return { key, cert };
 };

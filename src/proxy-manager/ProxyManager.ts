@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod/v4";
 
-import type { ProxyRouteProvider } from "../api-server/ApiServer.ts";
 import filterValues from "../lib/filterValues.ts";
 import getProjectRoot from "../lib/getProjectRoot.ts";
+import type LogSpan from "../logger/LogSpan.ts";
 
 const RoutesJsonSchema = z.record(
   z.string(),
@@ -26,28 +26,29 @@ const readRoutesFromDisk = async (): Promise<RoutesMap> =>
         .then(RoutesJsonSchema.parse)
     : {};
 
-const writeRoutesToDisk = async (routesMap: RoutesMap) => {
-  console.log("Writing routes to disk");
+const writeRoutesToDisk = async (routesMap: RoutesMap, span: LogSpan) => {
+  span.logNoNtfy("PROXY", "Writing routes to disk");
   await fs.promises.writeFile(
     ROUTES_JSON_PATH,
     JSON.stringify(routesMap, null, 2),
   );
-  console.log("  ...done!");
+  span.logNoNtfy("PROXY", "  ...done!");
 };
 
-class ProxyManager implements ProxyRouteProvider {
+class ProxyManager {
   #proxiesMap: RoutesMap;
 
-  static async create() {
-    console.log("Loading initial entries from disk");
+  static async create(span: LogSpan) {
+    span.log("PROXY", "Loading initial entries from disk");
     let proxiesMap = await readRoutesFromDisk();
 
     const entries = Object.entries(proxiesMap);
     if (entries.length === 0) {
-      console.log("  ...no entries found");
+      span.log("PROXY", "  ...no entries found");
     } else {
       Object.entries(proxiesMap).forEach(([hostname, value]) =>
-        console.log(
+        span.log(
+          "PROXY",
           `  ...loaded entry for ${hostname} -> ${value.targetHostname}:${value.targetPort}`,
         ),
       );
@@ -56,13 +57,13 @@ class ProxyManager implements ProxyRouteProvider {
       proxiesMap = filterValues(proxiesMap, (value, hostname) => {
         const keep = now < new Date(value.expires).getTime();
         if (!keep) {
-          console.log(`  ...discarding expired entry for ${hostname}`);
+          span.log("PROXY", `  ...discarding expired entry for ${hostname}`);
           somethingWasFiltered = true;
         }
         return keep;
       }) as RoutesMap;
 
-      if (somethingWasFiltered) await writeRoutesToDisk(proxiesMap);
+      if (somethingWasFiltered) await writeRoutesToDisk(proxiesMap, span);
     }
 
     return new ProxyManager(proxiesMap as RoutesMap);
@@ -82,8 +83,10 @@ class ProxyManager implements ProxyRouteProvider {
     targetHostname: string,
     targetPort: number,
     expires: Date,
+    span: LogSpan,
   ) {
-    console.log(
+    span.log(
+      "PROXY",
       `Updating route: ${hostname} -> ${targetHostname}:${targetPort} (valid until ${expires.toISOString()})`,
     );
     this.#proxiesMap[hostname] = { targetHostname, targetPort, expires };
@@ -101,12 +104,12 @@ class ProxyManager implements ProxyRouteProvider {
     }));
   }
 
-  async removeRoute(hostname: string) {
+  async removeRoute(hostname: string, span: LogSpan) {
     const oldMap = { ...this.#proxiesMap };
     delete this.#proxiesMap[hostname];
     if (Object.keys(oldMap).length > Object.keys(this.#proxiesMap).length) {
-      console.log(`Deleted route to ${hostname}`);
-      await writeRoutesToDisk(this.#proxiesMap);
+      span.log("PROXY", `Deleted route to ${hostname}`);
+      await writeRoutesToDisk(this.#proxiesMap, span);
     }
   }
 }

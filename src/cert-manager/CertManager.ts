@@ -1,54 +1,56 @@
 import { X509Certificate } from "node:crypto";
 import path from "node:path";
 
-import type { CertInfo, CertProvider } from "../api-server/ApiServer.ts";
+import type DnsManager from "../dns-manager/DnsManager.ts";
 import getProjectRoot from "../lib/getProjectRoot.ts";
-import getCertFromLetsencrypt, {
-  type DnsTxtRecordModifier,
-} from "./getCertFromLetsencrypt.ts";
+import LogSpan from "../logger/LogSpan.ts";
+import getCertFromLetsencrypt from "./getCertFromLetsencrypt.ts";
 import getCertInfoFromDisk from "./getCertInfoFromDisk.ts";
 
 const CERT_DIR = path.resolve(getProjectRoot(), "cert");
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
-class CertManager implements CertProvider {
+export type CertInfo = { key: Buffer; cert: Buffer };
+
+class CertManager {
   #certInfo: Readonly<CertInfo>;
-  #dnsTxtRecordModifier: DnsTxtRecordModifier;
+  #dnsManager: DnsManager;
 
-  static async create(dnsTxtRecordModifier: DnsTxtRecordModifier) {
-    let certInfo = await getCertInfoFromDisk(CERT_DIR);
+  static async create(dnsManager: DnsManager, span: LogSpan) {
+    let certInfo = await getCertInfoFromDisk(CERT_DIR, span);
     if (!certInfo) {
-      console.log(
-        "Cert info not found on disk, acquiring new from LetsEncrypt",
+      span.log(
+        "CERT",
+        "Cert info not found on disk, acquiring new from Let's Encrypt",
       );
-
-      certInfo = await getCertFromLetsencrypt(CERT_DIR, dnsTxtRecordModifier);
+      certInfo = await getCertFromLetsencrypt(CERT_DIR, dnsManager, span);
     }
 
-    console.log(
+    span.log(
+      "CERT",
       `Certificate is valid until ${new Date(new X509Certificate(certInfo.cert).validTo).toISOString()}`,
     );
 
-    const certManager = new CertManager(certInfo, dnsTxtRecordModifier);
-    await certManager.renewCertIfNeeded();
+    const certManager = new CertManager(certInfo, dnsManager);
+    await certManager.renewCertIfNeeded(span);
     return certManager;
   }
 
-  private constructor(
-    certInfo: CertInfo,
-    dnsTxtRecordModifier: DnsTxtRecordModifier,
-  ) {
+  private constructor(certInfo: CertInfo, dnsManager: DnsManager) {
     this.#certInfo = Object.freeze(certInfo);
-    this.#dnsTxtRecordModifier = dnsTxtRecordModifier;
-    setInterval(this.renewCertIfNeeded.bind(this), DAY_IN_MS);
+    this.#dnsManager = dnsManager;
+    setInterval(async () => {
+      await using span = new LogSpan("Renew expiring certificate");
+      await this.renewCertIfNeeded.bind(this)(span);
+    }, DAY_IN_MS);
   }
 
   getSslCert() {
     return this.#certInfo;
   }
 
-  private async renewCertIfNeeded(): Promise<void> {
+  private async renewCertIfNeeded(span: LogSpan): Promise<void> {
     const cert = new X509Certificate(this.#certInfo.cert);
     const validTo = new Date(cert.validTo);
     const validFrom = new Date(cert.validFrom);
@@ -61,11 +63,13 @@ class CertManager implements CertProvider {
 
     // some sanity checks in case certificate lifetimes are changed to something weird, and not ending up in a renewal loop
     if (isAlreadyExpired || (!wasIssuedLessThanAWeekAgo && expiresIn30Days)) {
-      console.log("Renewing expiring certificate");
+      span.log("CERT", "Renewing expiring certificate");
       this.#certInfo = await getCertFromLetsencrypt(
         CERT_DIR,
-        this.#dnsTxtRecordModifier,
+        this.#dnsManager,
+        span,
       );
+      span.log("CERT", "  ...done!");
     }
   }
 }

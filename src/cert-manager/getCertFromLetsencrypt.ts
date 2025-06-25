@@ -2,16 +2,15 @@ import acme, { Client as AcmeClient } from "acme-client";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { CertInfo } from "../api-server/ApiServer.ts";
-import env from "../lib/env.ts";
-
-export type DnsTxtRecordModifier = {
-  setTxtRecord(name: string, content: string): Promise<void>;
-  removeAllTxtRecords(name: string): Promise<void>;
-};
+import type DnsManager from "../dns-manager/DnsManager.ts";
+import env from "../env.ts";
+import LogSpan from "../logger/LogSpan.ts";
+import { flushAllBuffers } from "../logger/NtfyBuffer.ts";
+import type { CertInfo } from "./CertManager.ts";
 
 const getAcmeAccountKey = async (
   certDir: string,
+  span: LogSpan,
 ): Promise<{ newKeyWasCreated: boolean; buffer: Buffer }> => {
   const keyPath = path.resolve(certDir, "acmeAccount.key.pem");
   if (fs.existsSync(keyPath)) {
@@ -21,7 +20,8 @@ const getAcmeAccountKey = async (
     };
   }
 
-  console.log(
+  span.log(
+    "CERT",
     `Acme account private key not found in ${keyPath}, creating new one`,
   );
   const keyBuffer = await acme.crypto.createPrivateKey();
@@ -33,8 +33,11 @@ const getAcmeAccountKey = async (
   };
 };
 
-const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
-  const accountKeyInfo = await getAcmeAccountKey(certDir);
+const getAcmeClient = async (
+  certDir: string,
+  span: LogSpan,
+): Promise<AcmeClient> => {
+  const accountKeyInfo = await getAcmeAccountKey(certDir, span);
   const acmeClient = new AcmeClient({
     directoryUrl: acme.directory.letsencrypt.production,
     accountKey: accountKeyInfo.buffer,
@@ -44,9 +47,12 @@ const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
     const tosAgreed = env().LETSENCRYPT_TOS_AGREED;
     if (!tosAgreed) {
       const tosUrl = await acmeClient.getTermsOfServiceUrl();
-      throw new Error(
+      span.log(
+        "CERT",
         `Set LETSENCRYPT_TOS_AGREED=true once you've read ${tosUrl}`,
       );
+      await flushAllBuffers();
+      process.exit(1);
     }
     acmeClient.createAccount({
       contact: [`mailto:${env().EMAIL}`],
@@ -62,39 +68,44 @@ const getAcmeClient = async (certDir: string): Promise<AcmeClient> => {
 
 const getCertFromLetsencrypt = async (
   certDir: string,
-  dnsTxtRecordModifier: DnsTxtRecordModifier,
+  dnsManager: DnsManager,
+  span: LogSpan,
 ): Promise<CertInfo> => {
-  const acmeClient = await getAcmeClient(certDir);
+  const acmeClient = await getAcmeClient(certDir, span);
 
   const [key, csr] = await acme.crypto.createCsr({
     altNames: [env().DOMAIN_NAME, `*.${env().DOMAIN_NAME}`],
   });
 
-  console.log("Requesting DNS-01 challenge");
+  span.logNoNtfy("CERT", "Requesting DNS-01 challenge");
   const certString = await acmeClient.auto({
     csr,
     challengePriority: ["dns-01"],
     challengeCreateFn: async (authz, challenge, keyAuthorization) => {
       if (challenge.type === "http-01") return;
 
-      console.log(
+      span.logNoNtfy(
+        "CERT",
         `Setting up DNS-01 challenge answer for ${authz.identifier.value}...`,
       );
-      await dnsTxtRecordModifier.setTxtRecord(
+      await dnsManager.setTxtRecord(
         `_acme-challenge.${authz.identifier.value}`,
         keyAuthorization,
+        span,
       );
-      console.log("  ...done!");
+      span.logNoNtfy("CERT", "  ...done!");
     },
     challengeRemoveFn: async (authz, challenge, _keyAuthorization) => {
       if (challenge.type === "http-01") return;
-      console.log(
+      span.logNoNtfy(
+        "CERT",
         `Cleaning up DNS-01 challenge for ${authz.identifier.value}...`,
       );
-      await dnsTxtRecordModifier.removeAllTxtRecords(
+      await dnsManager.removeAllTxtRecords(
         `_acme-challenge.${authz.identifier.value}`,
+        span,
       );
-      console.log("  ...done");
+      span.logNoNtfy("CERT", "  ...done");
     },
   });
 
@@ -102,15 +113,15 @@ const getCertFromLetsencrypt = async (
 
   const keyPath = path.resolve(certDir, env().DOMAIN_NAME + ".key.pem");
   const certPath = path.resolve(certDir, env().DOMAIN_NAME + ".cert.pem");
-  console.log(`Saving:`);
-  console.log(`  - key to ${keyPath}`);
-  console.log(`  - cert to ${certPath}`);
+  span.log("CERT", `Saving:`);
+  span.log("CERT", `  - key to ${keyPath}`);
+  span.log("CERT", `  - cert to ${certPath}`);
   await fs.promises.mkdir(certDir, { recursive: true });
   await Promise.all([
     fs.promises.writeFile(keyPath, key),
     fs.promises.writeFile(certPath, cert),
   ]);
-  console.log("  ...done!");
+  span.log("CERT", "  ...done!");
 
   return {
     key,
