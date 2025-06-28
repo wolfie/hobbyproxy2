@@ -1,3 +1,5 @@
+- Check for name collisions on POST
+- Aliases/redirects (e.g. www -> root)
 - Nicer error handling on missing envs
 - WebSocket reverse proxy
 - Launch project from `npx` from anywhere
