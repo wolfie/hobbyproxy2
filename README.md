@@ -15,6 +15,7 @@ HobbyProxy assumes Node 24 or newer. The easiest way to ensure a supported versi
 ```bash
 cd hobbyproxy2
 nvm install
+corepack enable
 pnpm i --prod
 ```
 
