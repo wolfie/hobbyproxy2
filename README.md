@@ -15,6 +15,7 @@ HobbyProxy assumes Node 24 or newer. The easiest way to ensure a supported versi
 ```bash
 cd hobbyproxy2
 nvm install
+pnpm i --prod
 ```
 
 To start the proxy, run this in the HobbyProxy directory:
@@ -29,6 +30,31 @@ You can alternatively also use the following CLI option:
   - `error`: _(default)_ Refuse to start the server if the DNS does not resolve to this server.
   - `ignore`: Check whether the DNS resolves to this server, write warnings about possible failures and keep the server running.
   - `skip`: Skip this verification step altogether.
+
+## Environment Variables
+
+You can give the following env vars to HobbyProxy
+
+- CLOUDFLARE_API_TOKEN _required_
+  - Create one at https://dash.cloudflare.com/profile/api-tokens. Make sure it has DNS management access in your chosen Zone
+- CLOUDFLARE_ZONE_ID _required_ 
+  - Log in to Cloudflare, select a domain, right hand side, under the topics "API" and "Zone ID" is a 32-character hex string
+- DOMAIN_NAME _required_
+  - If you want to proxy for the domains `example.com` and the wildcard domain `*.example.com`, use the value "`example.com`"
+- EMAIL _required_
+  - Used only as the contact information for Let's Encrypt certificate application.
+- LETSENCRYPT_TOS_AGREED _required_
+  - Give `true` if you agree to the [Let's Encrypt TOS](https://letsencrypt.org/repository/#let-s-encrypt-subscriber-agreement)
+- HTTP_PORT _default=8080_
+- HTTPS_PORT _default=8433_
+- NTFY_SERVER _default=https://ntfy.sh_
+- NTFY_TOPIC _optional_
+
+## Logging
+
+HobbyProxy supports [ntfy.sh](https://ntfy.sh/) notifications. Unless `NTFY_TOPIC` is explicitly given, ntfy.sh messages are disabled. The free tier is plenty enough, as notifications are collated into larger chunks (rather than sent line-by-line). Pick a unique `NTFY_TOPIC` (try e.g. `hobbyproxy` followed by [two random words](https://duckduckgo.com/?q=random%20noun%20generator))
+
+However, if you want more secrecy, you can also set up your own server
 
 ## Admin API
 
