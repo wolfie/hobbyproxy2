@@ -53,7 +53,7 @@ You can give the following env vars to HobbyProxy
 
 ## Logging
 
-HobbyProxy supports [ntfy.sh](https://ntfy.sh/) notifications. Unless `NTFY_TOPIC` is explicitly given, ntfy.sh messages are disabled. The free tier is plenty enough, as notifications are collated into larger chunks (rather than sent line-by-line). Pick a unique `NTFY_TOPIC` (try e.g. `hobbyproxy` followed by [two random words](https://duckduckgo.com/?q=random%20noun%20generator))
+HobbyProxy supports [ntfy.sh](https://ntfy.sh/) notifications. Unless `NTFY_TOPIC` is explicitly given, ntfy.sh messages are disabled. The free tier is plenty enough, as notifications are collated into larger chunks (rather than sent line-by-line). Pick a unique `NTFY_TOPIC` (try e.g. `hobbyproxy` followed by [two random words](https://duckduckgo.com/?q=generate%20passphrase) )
 
 However, if you want more secrecy, you can also set up your own server
 
