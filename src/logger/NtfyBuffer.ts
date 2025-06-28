@@ -10,7 +10,9 @@ const createSendNtfy = (url: URL, topic: string | undefined): NtfySender => {
     console.log("NTFY_TOPIC not set, not using ntfy.sh for notifications.");
     return () => Promise.resolve(undefined);
   } else {
-    console.log(`Using ${url} for ntfy.sh notifications.`);
+    console.log(
+      `Using server ${url} and topic ${topic} for ntfy.sh notifications.`,
+    );
     return (message) => $sendNtfy(url, { topic, ...message }).then();
   }
 };
