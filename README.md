@@ -10,6 +10,13 @@ Clone the entire git project:
 git clone --depth 1 https://github.com/wolfie/hobbyproxy2.git
 ```
 
+To later update the repository, you can use the commands
+
+```bash
+git fetch --depth 1 origin master && git reset --hard origin/master
+```
+
+
 HobbyProxy assumes Node 24 or newer. The easiest way to ensure a supported version is with [nvm](https://github.com/nvm-sh/nvm#readme), and running the following command in the project directory:
 
 ```bash
