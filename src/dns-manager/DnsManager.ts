@@ -30,7 +30,7 @@ const getZoneId = async (
       throw new Error("Invalid zone id");
     }
   } else {
-    span.log("DNS", `CLOUDFLARE_ZONE_ID is not set`);
+    span.log("DNS", `‼️ CLOUDFLARE_ZONE_ID is not set`);
     await showAllZones(cloudflare, span);
     await flushAllBuffers();
     process.exit(1);
@@ -233,11 +233,11 @@ class DnsManager {
         ) {
           span.log(
             "DNS",
-            `Found conflicting record: [${entry.type}] ${entry.name}`,
+            `‼️ Found conflicting record: [${entry.type}] ${entry.name}`,
           );
           span.log(
             "DNS",
-            "Cannot fix DNS record issue automatically. Consider deleting the conflicting entry.",
+            "‼️ Cannot fix DNS record issue automatically. Consider deleting the conflicting entry.",
           );
           await flushAllBuffers();
           process.exit(1);

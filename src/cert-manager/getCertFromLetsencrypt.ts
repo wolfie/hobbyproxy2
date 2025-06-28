@@ -49,7 +49,7 @@ const getAcmeClient = async (
       const tosUrl = await acmeClient.getTermsOfServiceUrl();
       span.log(
         "CERT",
-        `Set LETSENCRYPT_TOS_AGREED=true once you've read ${tosUrl}`,
+        `‼️ Set LETSENCRYPT_TOS_AGREED=true once you've read ${tosUrl}`,
       );
       await flushAllBuffers();
       process.exit(1);

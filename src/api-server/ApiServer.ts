@@ -72,7 +72,7 @@ const createVerifyChallenge =
     }
 
     if (errorMessage) {
-      span.log("API", errorMessage);
+      span.log("API", "‼️ " + errorMessage);
       if (!ignoreFailure) {
         await flushAllBuffers();
         process.exit(1);

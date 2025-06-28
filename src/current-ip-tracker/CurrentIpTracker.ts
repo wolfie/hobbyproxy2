@@ -33,7 +33,7 @@ class CurrentIpTracker {
   static async create(span: LogSpan) {
     const initialIp = await getCurrentIp(span);
     if (!initialIp) {
-      span.log("IP", "Could not get initial IP");
+      span.log("IP", "‼️ Could not get initial IP");
       await flushAllBuffers();
       process.exit(1);
     }
