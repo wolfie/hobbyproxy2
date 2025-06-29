@@ -21,5 +21,18 @@ const ENV = z.object({
   NTFY_TOPIC: z.string().min(1).optional(),
 });
 
-const env = () => ENV.parse(process.env);
+let resolvedEnv: undefined | z.infer<typeof ENV> = undefined;
+const env = () => {
+  if (resolvedEnv) return resolvedEnv;
+
+  const result = ENV.safeParse(process.env);
+  if (result.success) {
+    resolvedEnv = result.data;
+    return resolvedEnv;
+  }
+
+  console.error("Error(s) parsing ENV:");
+  console.error(z.prettifyError(result.error));
+  process.exit(1);
+};
 export default env;
