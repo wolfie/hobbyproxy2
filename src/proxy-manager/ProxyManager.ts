@@ -2,9 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod/v4";
 
-import filterValues from "../lib/filterValues.ts";
 import getProjectRoot from "../lib/getProjectRoot.ts";
-import type LogSpan from "../logger/LogSpan.ts";
+import LogSpan from "../logger/LogSpan.ts";
 
 const RoutesJsonSchema = z.record(
   z.string(),
@@ -30,7 +29,7 @@ const writeRoutesToDisk = async (routesMap: RoutesMap, span: LogSpan) => {
   span.logNoNtfy("PROXY", "Writing routes to disk");
   await fs.promises.writeFile(
     ROUTES_JSON_PATH,
-    JSON.stringify(routesMap, null, 2),
+    JSON.stringify(routesMap, null, 2) + "\n",
   );
   span.logNoNtfy("PROXY", "  ...done!");
 };
@@ -52,25 +51,39 @@ class ProxyManager {
           `  ...loaded entry for ${hostname} -> ${value.targetHostname}:${value.targetPort}`,
         ),
       );
-      let somethingWasFiltered = false;
-      const now = Date.now();
-      proxiesMap = filterValues(proxiesMap, (value, hostname) => {
-        const keep = now < new Date(value.expires).getTime();
-        if (!keep) {
-          span.log("PROXY", `  ...discarding expired entry for ${hostname}`);
-          somethingWasFiltered = true;
-        }
-        return keep;
-      }) as RoutesMap;
-
-      if (somethingWasFiltered) await writeRoutesToDisk(proxiesMap, span);
     }
 
-    return new ProxyManager(proxiesMap as RoutesMap);
+    const manager = new ProxyManager(proxiesMap as RoutesMap);
+    await manager.pruneExpiringRoutes(span);
+    return manager;
   }
 
   private constructor(proxiesMap: RoutesMap) {
     this.#proxiesMap = proxiesMap;
+
+    setInterval(
+      async () => {
+        await using span = new LogSpan("Expiration Batch Job");
+        this.pruneExpiringRoutes(span);
+      },
+      60 * 60 * 1000, // hourly
+    );
+  }
+
+  private async pruneExpiringRoutes(span: LogSpan) {
+    const now = Date.now();
+    let somethingWasFiltered = false;
+    Object.entries({ ...this.#proxiesMap }).forEach(([site, info]) => {
+      if (info.expires.getTime() < now) {
+        somethingWasFiltered = true;
+        span.log(
+          "PROXY",
+          `Discarding route for ${site} (${info.targetHostname}:${info.targetPort}), expired at ${info.expires.toISOString()}`,
+        );
+        delete this.#proxiesMap[site];
+      }
+    });
+    if (somethingWasFiltered) await writeRoutesToDisk(this.#proxiesMap, span);
   }
 
   getRoute(hostname: string) {
