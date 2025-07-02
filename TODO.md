@@ -1,4 +1,5 @@
 - Aliases/redirects (e.g. www -> root)
-- Upload static sites in ZIP files (maybe?)
+- Way more testing
+- gzip static files
 - WebSocket reverse proxy
 - Launch project from `npx` from anywhere

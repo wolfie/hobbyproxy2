@@ -1,4 +1,5 @@
 node_modules
 cert
+zip
 .env
 routes.db.json

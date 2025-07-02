@@ -1,13 +1,19 @@
 import type { Request } from "express";
 
 import type { PostBodyLegacy, PostBodyV2 } from "./ApiServer.ts";
+import type { MapPostBodySuccess } from "./mapPostBodyToLatest.ts";
+
+export type MapLegacyToV2Error = {
+  success: false;
+  step: "legacy->v2";
+  error: "bad-hostname";
+  details: string;
+};
 
 const mapBodyLegacyToV2 = (
   body: PostBodyLegacy,
   req: Request,
-):
-  | { success: true; data: PostBodyV2 }
-  | { success: false; error: "bad-hostname"; details: string } => {
+): MapPostBodySuccess<PostBodyV2> | MapLegacyToV2Error => {
   const expires = new Date();
   expires.setDate(expires.getDate() + (body.staleInDays ?? 7));
 
@@ -19,6 +25,7 @@ const mapBodyLegacyToV2 = (
   if (!targetHostname) {
     return {
       success: false,
+      step: "legacy->v2",
       error: "bad-hostname",
       details: `Could not parse a hostname from ${body.target} (also req.socket.remoteAddress was empty)`,
     };

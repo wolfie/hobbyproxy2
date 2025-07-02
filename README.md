@@ -13,7 +13,7 @@ git clone --depth 1 https://github.com/wolfie/hobbyproxy2.git
 To later update the repository, you can use the commands
 
 ```bash
-git fetch --depth 1 origin master && git reset --hard origin/master
+git fetch --depth 1 origin master && git reset --hard origin/master && pnpm i --prod
 ```
 
 
@@ -72,9 +72,29 @@ The Admin API is available from the [local network address space](https://datatr
 - `POST /` allows you to add and/or update routes, using the `PostBody` structure
 - `DELETE /` allows you to remove routes, using the `DeleteBody` structure
 
+## Admin UI
+
+The Admin UI is available from [local network address space](https://datatracker.ietf.org/doc/html/rfc1918#section-3) or from the localhost. It is in the url `/ui` (e.g. http://localhost:8080/ui) with any browser. It allows you to see the current routes, remove routes and upload any static routes as [ZIP archives](https://en.wikipedia.org/wiki/ZIP_(file_format)).
+
 ### PostBody Structure
 
 ```json
+{
+    "version": 3,
+    "type": "http",
+    "hostname": "subdomain.yourdomain.tld",
+    "target": {
+        "hostname": "10.0.0.1",
+        "port": 8080,
+    },
+    "expires": "2026-01-01T12:00:00.000Z"
+} | {
+    "version": 3,
+    "type": "zip",
+    "hostname": "subdomain.yourdomain.tld",
+    "filename": "unique-archive-name.zip",
+    "contents": "base64formattedstring/"
+}
 {
   "version": 2,
   "hostname": "subdomain.yourdomain.tld",
