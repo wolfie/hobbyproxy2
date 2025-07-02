@@ -26,6 +26,7 @@ const errorCatcher = (topic: string) => async (e: unknown) => {
   span.log("PROCESS", format(e));
   await span.end();
   // throw e; // DO NOT THROW HERE! Leads to infinite loop
+  process.exit(1);
 };
 
 process.addListener("uncaughtException", errorCatcher("Uncaught Exception"));

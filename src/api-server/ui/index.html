@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <title>HobbyProxy Admin UI</title>
+    <link rel="stylesheet" href="./assets/style.css" />
+  </head>
+  <body>
+    <h1>Current Routes</h1>
+    <button id="current-routes-button">refetch</button>
+    <div id="current-routes"></div>
+    <h1>Add Zip</h1>
+    <form action="/" type="POST">
+      <input type="text" name="hostname" placeholder="site.yourdomain.tld" />
+      <div>
+        <input
+          type="file"
+          name="file"
+          accept="application/zip,application/x-zip-compressed"
+        />
+        <div id="filesize"></div>
+      </div>
+      <span><button type="submit">Send</button></span>
+    </form>
+    <script type="module" src="./assets/index.mts"></script>
+  </body>
+</html>
