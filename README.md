@@ -1,6 +1,6 @@
 # HobbyProxy v2
 
-This project is a naíve implementation of a reverse proxy for serving various projects within your homelab.
+This project is a naïve implementation of a reverse proxy for serving various projects within your homelab.
 
 ## Startup
 
