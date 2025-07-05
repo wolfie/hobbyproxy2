@@ -77,7 +77,10 @@ const init = () => {
     const base64 = getInputValue(form, "fileBase64");
     const hostname = getInputValue(form, "hostname");
     const file = getFile();
+
     form.reset();
+    const filesize = document.querySelector("#filesize");
+    if (filesize) filesize.innerHTML = "";
 
     fetch("/", {
       method: "post",
