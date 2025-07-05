@@ -3,4 +3,5 @@
 - Way more testing
 - gzip static files
 - WebSocket reverse proxy
+- Improve setup guide with a suggestion of using [PM2](https://pm2.io/)
 - Launch project from `npx` from anywhere
