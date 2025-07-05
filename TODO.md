@@ -1,4 +1,5 @@
 - Aliases/redirects (e.g. www -> root)
+- Rename zip files to unique file names to avoid collisions
 - Way more testing
 - gzip static files
 - WebSocket reverse proxy

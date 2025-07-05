@@ -247,9 +247,15 @@ class ApiServer {
       }
 
       const hostname = body.data.hostname;
-      this.#proxyManager.removeRoute(hostname, span);
-      delete this.#zipRequestHandlers[hostname];
-      res.send({ success: true });
+      const result = await this.#proxyManager.removeRoute(hostname, span);
+      if (result.success) {
+        delete this.#zipRequestHandlers[hostname];
+        res.send(result);
+      } else if (result.reason === "hostname-not-found") {
+        res.status(404).send(result);
+      } else {
+        res.status(500).send(result);
+      }
     });
 
     this.#app.use(upgradeToHttpsMiddleware, async (req, res, next) => {

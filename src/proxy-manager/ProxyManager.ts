@@ -104,6 +104,7 @@ class ProxyManager {
 
     const manager = new ProxyManager(proxiesMap, zipSites);
     await manager.pruneExpiringRoutes(span);
+    await manager.cleanupOrphanZipFiles(span);
     return manager;
   }
 
@@ -244,14 +245,59 @@ class ProxyManager {
     });
   }
 
-  async removeRoute(hostname: string, span: LogSpan) {
+  async removeRoute(
+    hostname: string,
+    span: LogSpan,
+  ): Promise<
+    | { success: true }
+    | { success: false; reason: "hostname-not-found" }
+    | { success: false; reason: "error"; error: any }
+  > {
+    const site = this.#routesJson[hostname];
+    if (!site) return { success: false, reason: "hostname-not-found" };
+
+    if (site.type === "zip") {
+      try {
+        await fs.promises.rm(path.join(ZIP_PATH, site.filename));
+      } catch (e) {
+        return { success: false, reason: "error", error: e };
+      }
+    }
+
     const oldMap = { ...this.#routesJson };
+
     delete this.#routesJson[hostname];
     delete this.#zipSites[hostname];
     if (Object.keys(oldMap).length > Object.keys(this.#routesJson).length) {
       span.log("PROXY", `Deleted route to ${hostname}`);
-      await writeRoutesToDisk(this.#routesJson, span);
+      try {
+        await writeRoutesToDisk(this.#routesJson, span);
+      } catch (e) {
+        span.log("PROXY", `error: ${format(e)}`);
+        return { success: false, reason: "error", error: e };
+      }
     }
+
+    return { success: true };
+  }
+
+  private async cleanupOrphanZipFiles(span: LogSpan) {
+    const filesToDelete = new Set(await fs.promises.readdir(ZIP_PATH));
+    this.getRoutes()
+      .filter((route) => route.type === "zip")
+      .forEach((route) => filesToDelete.delete(route.filename));
+
+    const results = await Promise.allSettled(
+      [...filesToDelete].map((file) => {
+        const orphanFilePath = path.join(ZIP_PATH, file);
+        span.log("PROXY", `Deleting orphan file ${orphanFilePath}`);
+        return fs.promises.rm(orphanFilePath);
+      }),
+    );
+
+    results
+      .filter((r) => r.status === "rejected")
+      .forEach((e) => span.log("PROXY", `error: ${format(e)}`));
   }
 }
 
