@@ -1,6 +1,5 @@
 - Aliases/redirects (e.g. www -> root)
 - Rename zip files to unique file names to avoid collisions
-- Handle `fetch` network errors elegantly. At least make sure that they don't crash the system
 - Way more testing
 - gzip static files
 - WebSocket reverse proxy
