@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod/v4";
 
+import ProxyServer from "http-proxy";
 import { format } from "node:util";
 import getProjectRoot from "../lib/getProjectRoot.ts";
 import type { ExtractedZip } from "../lib/unzip.ts";
@@ -66,11 +67,13 @@ export type SetZipRouteResult =
 class ProxyManager {
   #routesJson: RoutesJson;
   #zipSites: { [hostname: string]: ExtractedZip };
+  #httpProxyServers: { [hostname: string]: ProxyServer };
 
   static async create(span: LogSpan) {
     span.log("PROXY", "Loading initial entries from disk");
     const proxiesMap = await readRoutesFromDisk(span);
     const zipSites: { [hostname: string]: ExtractedZip } = {};
+    const httpProxyServers: { [hostname: string]: ProxyServer } = {};
 
     const entries = Object.entries(proxiesMap);
     if (entries.length === 0) {
@@ -78,10 +81,14 @@ class ProxyManager {
     } else {
       for (const [hostname, value] of Object.entries(proxiesMap)) {
         if (value.type === "http") {
-          span.log(
-            "PROXY",
-            `  ...loaded entry for ${hostname} -> http://${value.targetHostname}:${value.targetPort}`,
-          );
+          const target = `http://${value.targetHostname}:${value.targetPort}`;
+          span.log("PROXY", `  ...loaded entry for ${hostname} -> ${target}`);
+          httpProxyServers[hostname] = ProxyServer.createProxyServer({
+            target,
+            protocolRewrite: "http",
+            xfwd: true,
+            ws: true,
+          });
         } else if (value.type === "zip") {
           const buffer = await fs.promises.readFile(
             path.join(ZIP_PATH, value.filename),
@@ -102,7 +109,7 @@ class ProxyManager {
       }
     }
 
-    const manager = new ProxyManager(proxiesMap, zipSites);
+    const manager = new ProxyManager(proxiesMap, zipSites, httpProxyServers);
     await manager.pruneExpiringRoutes(span);
     await manager.cleanupOrphanZipFiles(span);
     return manager;
@@ -111,9 +118,11 @@ class ProxyManager {
   private constructor(
     routesJson: RoutesJson,
     zipSites: { [hostname: string]: ExtractedZip },
+    httpProxyServers: { [hostname: string]: ProxyServer },
   ) {
     this.#routesJson = routesJson;
     this.#zipSites = zipSites;
+    this.#httpProxyServers = httpProxyServers;
 
     setInterval(
       async () => {
@@ -135,6 +144,7 @@ class ProxyManager {
           `Discarding route for ${site} (${info.targetHostname}:${info.targetPort}), expired at ${info.expires.toISOString()}`,
         );
         delete this.#routesJson[site];
+        delete this.#httpProxyServers[site];
       }
     });
     if (somethingWasFiltered) {
@@ -146,7 +156,15 @@ class ProxyManager {
     const route = this.#routesJson[hostname];
     if (!route) return undefined;
     else if (route.type === "http") {
-      return route;
+      const httpProxyServer = this.#httpProxyServers[hostname];
+      if (!httpProxyServer) {
+        span.log("PROXY", `Could not find a http proxy server for ${hostname}`);
+        flushAllBuffers().then(() => process.exit(1));
+      }
+      return {
+        ...route,
+        httpProxyServer: httpProxyServer!,
+      };
     } else if (route.type === "zip") {
       return {
         ...route,
@@ -180,6 +198,12 @@ class ProxyManager {
         expires,
       };
       await writeRoutesToDisk(this.#routesJson, span);
+      this.#httpProxyServers[hostname] = ProxyServer.createProxyServer({
+        target: `http://${targetHostname}:${targetPort}`,
+        protocolRewrite: "http",
+        xfwd: true,
+        ws: true,
+      });
       return { success: true };
     } catch (e) {
       return { success: false, reason: "error", error: e };
@@ -268,6 +292,7 @@ class ProxyManager {
 
     delete this.#routesJson[hostname];
     delete this.#zipSites[hostname];
+    delete this.#httpProxyServers[hostname];
     if (Object.keys(oldMap).length > Object.keys(this.#routesJson).length) {
       span.log("PROXY", `Deleted route to ${hostname}`);
       try {

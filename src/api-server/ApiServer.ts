@@ -18,7 +18,6 @@ import type {
 } from "../proxy-manager/ProxyManager.ts";
 import mapPostBodyToLatest from "./mapPostBodyToLatest.ts";
 import onlyLanMiddleware from "./onlyLanMiddleware.ts";
-import proxy from "./proxy.ts";
 import staticZipRoute from "./staticZipRoute.ts";
 import upgradeToHttpsMiddleware from "./upgradeToHttpsMiddleware.ts";
 
@@ -272,7 +271,7 @@ class ApiServer {
         }
         zipRequestHandler(req, res, next);
       } else if (target.type === "http") {
-        proxy(target.targetHostname, target.targetPort, req, res);
+        target.httpProxyServer.web(req, res);
       } else {
         span.log(
           "API",
