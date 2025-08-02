@@ -207,6 +207,8 @@ class ProxyManager {
         protocolRewrite: "http",
         xfwd: true,
         ws: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
       });
       return { success: true };
     } catch (e) {

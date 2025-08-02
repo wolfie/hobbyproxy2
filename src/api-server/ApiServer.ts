@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
 
+import { format } from "node:util";
 import type CertManager from "../cert-manager/CertManager.ts";
 import env from "../env.ts";
 import LogSpan from "../logger/LogSpan.ts";
@@ -272,7 +273,21 @@ class ApiServer {
         }
         zipRequestHandler(req, res, next);
       } else if (target.type === "http") {
-        target.httpProxyServer.web(req, res);
+        target.httpProxyServer.web(
+          req,
+          res,
+          undefined,
+          async (err, req, res) => {
+            await using span = new LogSpan("HTTP proxy Error");
+            span.log(
+              "PROXY",
+              `Error while proxying HTTP ${req.headers.host} ${req.url} to ${target.targetHostname}\n${format(err)}`,
+            );
+            res.write("HTTP/1.1 500 Internal Server Error");
+            res.end();
+            this.#proxyManager.removeRoute(hostname, span);
+          },
+        );
       } else {
         span.log(
           "API",
@@ -319,8 +334,23 @@ class ApiServer {
         socket.destroy();
         return;
       }
+      span.end();
 
-      route.httpProxyServer.ws(req, socket, head);
+      route.httpProxyServer.ws(
+        req,
+        socket,
+        head,
+        undefined,
+        async (err, req, res, target) => {
+          await using span = new LogSpan("WebSocket proxy error");
+          span.log(
+            "PROXY",
+            `Error while proxying websockets ${req.headers.host} ${req.url} to ${target}\n${format(err)}`,
+          );
+          res.write("HTTP/1.1 500 Internal Server Error");
+          res.end();
+        },
+      );
     });
 
     await Promise.all([httpPromise, httpsPromise]);

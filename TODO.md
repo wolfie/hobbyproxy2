@@ -1,3 +1,4 @@
+- Handle unreachable http targets elegantly
 - Aliases/redirects (e.g. www -> root)
 - Rename zip files to unique file names to avoid collisions
 - Way more testing
