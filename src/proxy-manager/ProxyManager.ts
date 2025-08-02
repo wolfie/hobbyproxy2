@@ -64,6 +64,10 @@ export type SetZipRouteResult =
   | { success: false; reason: "file-already-exists" }
   | { success: false; reason: "error"; error: any };
 
+export type SingleRoute = NonNullable<
+  ReturnType<(typeof ProxyManager.prototype)["getRoute"]>
+>;
+
 class ProxyManager {
   #routesJson: RoutesJson;
   #zipSites: { [hostname: string]: ExtractedZip };

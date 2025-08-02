@@ -147,6 +147,7 @@ class ApiServer {
     this.#opts = { ...DEFAULT_OPTIONS, ...opts };
 
     this.#app = express();
+
     this.#app.disable("x-powered-by");
     this.#app.use(express.json());
     this.#httpServer = http.createServer(this.#app);
@@ -294,9 +295,32 @@ class ApiServer {
 
     const { promise: httpsPromise, resolve: httpsResolve } =
       Promise.withResolvers<void>();
-    this.#httpsServer.listen(env().HTTPS_PORT, "0.0.0.0", () => {
-      span.log("API", `HTTPS server started on port ${env().HTTPS_PORT}`);
-      httpsResolve();
+    const httpsServer = this.#httpsServer.listen(
+      env().HTTPS_PORT,
+      "0.0.0.0",
+      () => {
+        span.log("API", `HTTPS server started on port ${env().HTTPS_PORT}`);
+        httpsResolve();
+      },
+    );
+
+    httpsServer.on("upgrade", async (req, socket, head) => {
+      const host = req.headers.host;
+      if (!host) {
+        socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      await using span = new LogSpan("HTTP Upgrade");
+      const route = this.#proxyManager.getRoute(host, span);
+      if (!route || route.type !== "http") {
+        socket.write("HTTP/1.1 400 Bad Request\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      route.httpProxyServer.ws(req, socket, head);
     });
 
     await Promise.all([httpPromise, httpsPromise]);
